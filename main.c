@@ -8,23 +8,10 @@
 #include "hardware/pio.h"
 #include "hardware/pwm.h"
 #include "inc/ssd1306.h"
-#include "lwip/dns.h"
-#include "lwip/init.h"
-#include "lwip/pbuf.h"
-#include "lwip/tcp.h"
 #include "np.h"
-#include "pico/binary_info.h"
-#include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "ws2818b.pio.h"
-
-// Variáveis relacionadas a wi-fi e thingSpeak
-#define WIFI_SSID "brisa-63489"
-#define WIFI_PASS "ud3henxz"
-#define THINGSPEAK_HOST "api.thingspeak.com"
-#define THINGSPEAK_PORT 80
-#define API_KEY "TWSP5RIPE7LLEVJ2"  // Chave de escrita do ThingSpeak
-#define WIFI_TIMEOUT_MS 10000
+#include "wifi.h"
 
 struct tcp_pcb *tcp_client_pcb;
 ip_addr_t server_ip;
@@ -36,7 +23,6 @@ struct render_area ssd1306_frame_area = {
     start_page : 0,
     end_page : ssd1306_n_pages - 1
 };
-// bool need_clear_screen = false;
 uint8_t ssd[ssd1306_buffer_length];
 
 // variáveis para setup de matriz de leds
@@ -45,6 +31,7 @@ struct pixel_t {
 };
 typedef struct pixel_t pixel_t;
 uint sm;
+PIO np_pio;
 
 struct round_data {
     int sleep_time_before_start, reaction_time;
@@ -152,7 +139,7 @@ uint16_t vry_value, vrx_value;
 // np = neopixel = matriz de leds
 void np_init(uint pin) {
     uint offset = pio_add_program(pio0, &ws2818b_program);
-    PIO np_pio = pio0;
+    np_pio = pio0;
 
     sm = pio_claim_unused_sm(np_pio, false);
     if (sm < 0) {
@@ -278,28 +265,6 @@ void update_screen() {
             break;
         default:
             break;
-    }
-}
-
-bool connect_with_timeout() {
-    int result = cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASS,
-                                               CYW43_AUTH_WPA2_MIXED_PSK);
-    if (result != 0) {
-        printf("Failed to start connection: %d\n", result);
-        return false;
-    }
-
-    uint32_t start_time = to_ms_since_boot(get_absolute_time());
-    while (true) {
-        if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) ==
-            CYW43_LINK_UP)
-            return true;
-
-        uint32_t elapsed_time =
-            to_ms_since_boot(get_absolute_time()) - start_time;
-        if (elapsed_time >= WIFI_TIMEOUT_MS) return false;
-
-        sleep_ms(100);
     }
 }
 
