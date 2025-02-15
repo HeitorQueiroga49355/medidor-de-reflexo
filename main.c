@@ -11,9 +11,6 @@
 #include "wifi.h"
 #include "ws2818b.pio.h"
 
-struct tcp_pcb *tcp_client_pcb;
-ip_addr_t server_ip;
-
 // variáveis para setup de matriz de leds
 struct pixel_t {
     uint8_t G, R, B;
@@ -381,63 +378,10 @@ void calculate_average_reaction_time() {
 }
 
 void create_final_message() {
-    char(*message)[17] =
-        get_message(M_FINAL); 
-                                    
-    snprintf(message[2], 17, "%15d", average_time); 
-    snprintf(message[4], 17, "%15d", lost_rounds);  
-}
+    char(*message)[17] = get_message(M_FINAL);
 
-// Callback quando recebe resposta do ThingSpeak
-static err_t http_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
-                                err_t err) {
-    if (p == NULL) {
-        tcp_close(tpcb);
-        return ERR_OK;
-    }
-    printf("Resposta do ThingSpeak: %.*s\n", p->len, (char *)p->payload);
-    pbuf_free(p);
-    return ERR_OK;
-}
-
-static err_t http_connected_callback(void *arg, struct tcp_pcb *tpcb,
-                                     err_t err) {
-    if (err != ERR_OK) {
-        printf("Erro na conexão TCP\n");
-        return err;
-    }
-
-    printf("Conectado ao ThingSpeak!\n");
-
-    char request[256];
-
-    snprintf(
-        request, sizeof(request),
-        "GET "
-        "https://api.thingspeak.com/update?api_key=%s&field1=%d&field2=%d\r\n",
-        API_KEY, average_time, lost_rounds);
-
-    tcp_write(tpcb, request, strlen(request), TCP_WRITE_FLAG_COPY);
-    tcp_output(tpcb);
-    tcp_recv(tpcb, http_recv_callback);
-
-    return ERR_OK;
-}
-
-static void dns_callback(const char *name, const ip_addr_t *ipaddr,
-                         void *callback_arg) {
-    if (ipaddr) {
-        printf("Endereço IP do ThingSpeak: %s\n", ipaddr_ntoa(ipaddr));
-        tcp_client_pcb = tcp_new();
-        tcp_connect(tcp_client_pcb, ipaddr, THINGSPEAK_PORT,
-                    http_connected_callback);
-    } else {
-        printf("Falha na resolução de DNS\n");
-    }
-}
-
-void upload_data() {
-    dns_gethostbyname(THINGSPEAK_HOST, &server_ip, dns_callback, NULL);
+    snprintf(message[2], 17, "%15d", average_time);
+    snprintf(message[4], 17, "%15d", lost_rounds);
 }
 
 int main() {
@@ -483,7 +427,7 @@ int main() {
             current_step = 5;
             update_screen();
             sleep_ms(1000);
-            upload_data();
+            send_data(average_time, lost_rounds);
             current_step = 6;
 
             update_screen();

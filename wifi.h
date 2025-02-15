@@ -17,5 +17,6 @@
 #define WIFI_TIMEOUT_MS 10000
 
 bool connect_with_timeout();
+void send_data(uint32_t average_time, int lost_rounds);
 
 #endif
