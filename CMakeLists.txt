@@ -35,29 +35,29 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(task7 task7.c inc/ssd1306_i2c.c )
+add_executable(main main.c inc/ssd1306_i2c.c np_functions.c)
 
-pico_set_program_name(task7 "task7")
-pico_set_program_version(task7 "0.1")
+pico_set_program_name(main "main")
+pico_set_program_version(main "0.1")
 
 # Generate PIO header
-pico_generate_pio_header(task7 ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
+pico_generate_pio_header(main ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(task7 0)
-pico_enable_stdio_usb(task7 1)
+pico_enable_stdio_uart(main 0)
+pico_enable_stdio_usb(main 1)
 
 # Add the standard library to the build
-target_link_libraries(task7
+target_link_libraries(main
         pico_stdlib)
 
 # Add the standard include files to the build
-target_include_directories(task7 PRIVATE
+target_include_directories(main PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
 
 # Add any user requested libraries
-target_link_libraries(task7 
+target_link_libraries(main 
         hardware_pio
         hardware_clocks
         hardware_i2c
@@ -67,5 +67,5 @@ target_link_libraries(task7
         pico_cyw43_arch_lwip_threadsafe_background
         )
 
-pico_add_extra_outputs(task7)
+pico_add_extra_outputs(main)
 

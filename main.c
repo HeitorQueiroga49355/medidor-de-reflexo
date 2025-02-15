@@ -1,8 +1,7 @@
-// #include "variables_and_imports.h"
-
 #include <stdio.h>
 #include <string.h>
 
+#include "global_variables.h"
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/i2c.h"
@@ -13,46 +12,24 @@
 #include "lwip/init.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
+#include "np.h"
 #include "pico/binary_info.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "ws2818b.pio.h"
 
-#define NP_LED_COUNT 25
-#define NP_PIN 7
-#define LEDR 13
-#define LEDG 11
-#define LEDB 12
-#define BTN_A 5
-#define BTN_B 6
-#define JOYSTICK_BTN 22
-#define DEBOUNCE_DELAY_MS_BTN 300
-#define VRX 26
-#define VRY 27
-#define ADC_CHANNEL_0 0
-#define ADC_CHANNEL_1 1
-#define BUZZER 21
-#define LED_STEP 100
-#define DIVIDER_PWM 16.0
-#define PERIOD 4096
-#define ROUNDS_AMOUNT 5
-#define NPI 1000000
-#define BUZZER_FREQUENCY 2000
-#define BEEP_DURATION 300
-
 // Variáveis relacionadas a wi-fi e thingSpeak
 #define WIFI_SSID "brisa-63489"
-#define WIFI_PASS "ud3henxa"
+#define WIFI_PASS "ud3henxz"
 #define THINGSPEAK_HOST "api.thingspeak.com"
 #define THINGSPEAK_PORT 80
 #define API_KEY "TWSP5RIPE7LLEVJ2"  // Chave de escrita do ThingSpeak
 #define WIFI_TIMEOUT_MS 10000
+
 struct tcp_pcb *tcp_client_pcb;
 ip_addr_t server_ip;
 
 // variáveis para setup de SSD1306
-const uint I2C_SDA = 14;
-const uint I2C_SCL = 15;
 struct render_area ssd1306_frame_area = {
     start_column : 0,
     end_column : ssd1306_width - 1,
@@ -67,58 +44,8 @@ struct pixel_t {
     uint8_t G, R, B;
 };
 typedef struct pixel_t pixel_t;
-pixel_t np_leds[NP_LED_COUNT];
-PIO np_pio;
 uint sm;
-// Símbolos a serem mostrados pela matriz de led
-const int NP_LETTER_A[NP_LED_COUNT] = {NPI, 0,   0,   0,   NPI, NPI, 0, 0,   0,
-                                       NPI, NPI, NPI, NPI, NPI, NPI, 0, NPI, 0,
-                                       NPI, 0,   0,   0,   NPI, 0,   0};
-const int NP_LETTER_B[NP_LED_COUNT] =
-    {
-        0,   NPI, NPI, NPI, NPI, NPI, 0, 0, NPI, 0,   0,   0,   NPI,
-        NPI, NPI, NPI, 0,   0,   NPI, 0, 0, NPI, NPI, NPI, NPI,
-},
-          NP_ARROW_UP[NP_LED_COUNT] =
-              {
-                  0, 0,   NPI, 0,   0,   0,   0, NPI, 0, 0,   NPI, 0, NPI,
-                  0, NPI, 0,   NPI, NPI, NPI, 0, 0,   0, NPI, 0,   0,
-},
-          NP_ARROW_RIGHT[NP_LED_COUNT] =
-              {
-                  0,   0,   NPI, 0, 0, 0,   0, 0, NPI, 0,   NPI, NPI, NPI,
-                  NPI, NPI, 0,   0, 0, NPI, 0, 0, 0,   NPI, 0,   0,
-},
-          NP_ARROW_DOWN[NP_LED_COUNT] =
-              {
-                  0, 0,   NPI, 0, 0,   0, NPI, NPI, NPI, 0,   NPI, 0, NPI,
-                  0, NPI, 0,   0, NPI, 0, 0,   0,   0,   NPI, 0,   0,
-},
-          NP_ARROW_LEFT[NP_LED_COUNT] =
-              {
-                  0,   0,   NPI, 0,   0, 0, NPI, 0, 0, 0,   NPI, NPI, NPI,
-                  NPI, NPI, 0,   NPI, 0, 0, 0,   0, 0, NPI, 0,   0,
-},
-          NP_BLANK[NP_LED_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-// variáveis para dados das rodadas
-enum possible_actions {
-    /*
-      Um "action" é um botão que o usuário pode interagir
-    */
-    pa_NULL = -1,
-    b_A,
-    b_B,
-    UP,
-    RIGHT,
-    DOWN,
-    LEFT,
-    JOY_B,
-    first_action = b_A,
-    last_action = LEFT
-};
-typedef enum possible_actions possible_actions;
 struct round_data {
     int sleep_time_before_start, reaction_time;
     possible_actions action;
@@ -161,8 +88,8 @@ char m_wifi_connected[8][17] = {
 };
 char m_wifi_not_connected[8][17] = {
     "WI-FI N\xc3O CO-   ", "                ", "NECTADO         ",
-    "                ", "TESTE OFFLINE   ", "                ",
-    "                ", "                ",
+    "                ",    "TESTE OFFLINE   ", "                ",
+    "                ",    "                ",
 };
 char m_before_test[3][17] = {
     "  INICIAR TESTE ",
@@ -205,7 +132,6 @@ char m_data_was_sent[7][17] = {
     "                ",
 };
 
-
 // Função callback de interrupção de botões
 void gpio_callback(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
@@ -226,7 +152,7 @@ uint16_t vry_value, vrx_value;
 // np = neopixel = matriz de leds
 void np_init(uint pin) {
     uint offset = pio_add_program(pio0, &ws2818b_program);
-    np_pio = pio0;
+    PIO np_pio = pio0;
 
     sm = pio_claim_unused_sm(np_pio, false);
     if (sm < 0) {
@@ -235,12 +161,6 @@ void np_init(uint pin) {
     }
 
     ws2818b_program_init(np_pio, sm, offset, pin, 800000.f);
-
-    for (uint i = 0; i < NP_LED_COUNT; ++i) {
-        np_leds[i].R = 0;
-        np_leds[i].G = 0;
-        np_leds[i].B = 0;
-    }
 }
 
 void np_write(const uint *symbol) {
@@ -424,7 +344,7 @@ void setup() {
     np_init(NP_PIN);
 
     setup_rounds_data();
-    np_write(NP_BLANK);
+    np_write(get_np_symbol(10));
 
     update_screen();
 
@@ -525,28 +445,6 @@ void sleep_with_break(uint32_t time) {
     }
 }
 
-// Retornar o array da matriz de leds correspondente botão que o usuário precisa
-// pressionar
-const int *get_np_symbol_to_show() {
-    switch (rounds[round_index].action) {
-        case b_A:
-            return NP_LETTER_A;
-        case b_B:
-            return NP_LETTER_B;
-        case UP:
-            return NP_ARROW_UP;
-        case RIGHT:
-            return NP_ARROW_RIGHT;
-        case DOWN:
-            return NP_ARROW_DOWN;
-        case LEFT:
-            return NP_ARROW_LEFT;
-
-        default:
-            break;
-    }
-}
-
 void pwm_init_buzzer(uint pin, int FREQ_BUZZER) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
 
@@ -586,10 +484,10 @@ void start_test() {
 
         round_start_time = to_ms_since_boot(get_absolute_time());
         is_reading_round_data = true;
-        np_write(get_np_symbol_to_show());
+        np_write(get_np_symbol(rounds[round_index].action));
         buzzer_alert();
         sleep_with_break(3000);
-        np_write(NP_BLANK);
+        np_write(get_np_symbol(10));
 
         if (is_to_reset) break;
     }
