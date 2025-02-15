@@ -1,29 +1,18 @@
 #include <stdio.h>
-#include <string.h>
 
 #include "global_variables.h"
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
-#include "hardware/i2c.h"
 #include "hardware/pio.h"
 #include "hardware/pwm.h"
-#include "inc/ssd1306.h"
 #include "np.h"
+#include "oled.h"
 #include "pico/stdlib.h"
-#include "ws2818b.pio.h"
 #include "wifi.h"
+#include "ws2818b.pio.h"
 
 struct tcp_pcb *tcp_client_pcb;
 ip_addr_t server_ip;
-
-// variáveis para setup de SSD1306
-struct render_area ssd1306_frame_area = {
-    start_column : 0,
-    end_column : ssd1306_width - 1,
-    start_page : 0,
-    end_page : ssd1306_n_pages - 1
-};
-uint8_t ssd[ssd1306_buffer_length];
 
 // variáveis para setup de matriz de leds
 struct pixel_t {
@@ -61,63 +50,6 @@ volatile uint32_t last_interruption_time =
 bool is_to_reset =
     false;  // Caso o usuário queira resetar o teste durante a execução
 bool is_online = false;
-
-// textos a serem mostrados no display
-char m_wifi_connecting[8][17] = {
-    "   CONECTANDO   ", "                ", "     WI-FI      ",
-    "                ", "                ", "                ",
-    "                ", "                ",
-};
-char m_wifi_connected[8][17] = {
-    "    ONLINE!     ", "                ", "                ",
-    "                ", "                ", "                ",
-    "                ", "                ",
-};
-char m_wifi_not_connected[8][17] = {
-    "WI-FI N\xc3O CO-   ", "                ", "NECTADO         ",
-    "                ",    "TESTE OFFLINE   ", "                ",
-    "                ",    "                ",
-};
-char m_before_test[3][17] = {
-    "  INICIAR TESTE ",
-    "                ",
-    "APERTE BOT\xc3O A",
-};
-char m_prepare_3[3][17] = {
-    "                ",
-    "                ",
-    " INICIANDO EM 3 ",
-};
-char m_prepare_2[3][17] = {
-    "                ",
-    "                ",
-    " INICIANDO EM 2 ",
-};
-char m_prepare_1[3][17] = {
-    "                ",
-    "                ",
-    " INICIANDO EM 1 ",
-};
-char m_attention_alert[3][17] = {
-    "                ",
-    "                ",
-    "    ATEN\xe7\xc3O!    ",
-};
-char m_final[7][17] = {
-    "   TEMPO MEDIO  ", "                ", "                ",
-    "     PERDAS     ", "                ", "PRESSIONE A     ",
-    "                ",
-};
-char m_sending_data[7][17] = {
-    "    ENVIANDO    ", "                ", "    DADOS...    ",
-    "                ", "                ", "                ",
-    "                ",
-};
-char m_data_was_sent[7][17] = {
-    "     DADOS      ", "                ", "    ENVIADOS    ",
-    "                ", "                ", "                ",
-    "                ",
-};
 
 // Função callback de interrupção de botões
 void gpio_callback(uint gpio, uint32_t events) {
@@ -158,14 +90,6 @@ void np_write(const uint *symbol) {
     }
 
     sleep_us(100);  // Espera 100us, sinal de RESET do datasheet.
-}
-
-void setup_oled() {
-    i2c_init(i2c1, ssd1306_i2c_clock * 1000);
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_SDA);
-    gpio_pull_up(I2C_SCL);
 }
 
 void setup_joystick() {
@@ -213,55 +137,41 @@ void setup_rounds_data() {
     }
 }
 
-void clear_display_ssd1306() {
-    memset(ssd, 0, ssd1306_buffer_length);
-    render_on_display(ssd, &ssd1306_frame_area);
-}
-
-void write_in_oled(char text[][17], int lines_amount) {
-    int y = 0;
-    for (uint i = 0; i < lines_amount * 17; i++) {
-        ssd1306_draw_string(ssd, 5, y, text[i]);
-        y += 8;
-    }
-    render_on_display(ssd, &ssd1306_frame_area);
-}
-
 void update_screen() {
     clear_display_ssd1306();
     switch (current_step) {
         case -1:
-            write_in_oled(m_wifi_connecting, 8);
+            write_in_oled(M_WIFI_CONNECTING, 8);
             break;
         case -2:
-            write_in_oled(m_wifi_connected, 8);
+            write_in_oled(M_WIFI_CONNECTED, 8);
             break;
         case -3:
-            write_in_oled(m_wifi_not_connected, 8);
+            write_in_oled(M_WIFI_NOT_CONNECTED, 8);
             break;
         case 0:
-            write_in_oled(m_before_test, 3);
+            write_in_oled(M_BEFORE_TEST, 3);
             break;
         case 1:
-            write_in_oled(m_prepare_3, 3);
+            write_in_oled(M_PREPARE_3, 3);
             break;
         case 2:
-            write_in_oled(m_prepare_2, 3);
+            write_in_oled(M_PREPARE_2, 3);
             break;
         case 3:
-            write_in_oled(m_prepare_1, 3);
+            write_in_oled(M_PREPARE_1, 3);
             break;
         case 4:
-            write_in_oled(m_attention_alert, 3);
+            write_in_oled(M_ATTENTION_ALERT, 3);
             break;
         case 5:
-            write_in_oled(m_sending_data, 7);
+            write_in_oled(M_SENDING_DATA, 7);
             break;
         case 6:
-            write_in_oled(m_data_was_sent, 7);
+            write_in_oled(M_DATA_WAS_SENT, 7);
             break;
         case 7:
-            write_in_oled(m_final, 7);
+            write_in_oled(M_FINAL, 7);
             break;
         default:
             break;
@@ -471,8 +381,8 @@ void calculate_average_reaction_time() {
 }
 
 void create_final_message() {
-    snprintf(m_final[2], 17, "%15d", average_time);
-    snprintf(m_final[4], 17, "%15d", lost_rounds);
+    // snprintf(m_final[2], 17, "%15d", average_time);
+    // snprintf(m_final[4], 17, "%15d", lost_rounds);
 }
 
 // Callback quando recebe resposta do ThingSpeak
