@@ -51,8 +51,8 @@ char m_attention_alert[3][17] = {
 };
 char m_final[7][17] = {
     "   TEMPO MEDIO  ", "                ", "                ",
-    "     PERDAS     ", "                ", "PRESSIONE A     ",
-    "                ",
+    "     PERDAS     ", "                ", "                ",
+    "PRESSIONE A     ",
 };
 char m_sending_data[7][17] = {
     "    ENVIANDO    ", "                ", "    DADOS...    ",

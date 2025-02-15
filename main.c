@@ -381,8 +381,11 @@ void calculate_average_reaction_time() {
 }
 
 void create_final_message() {
-    // snprintf(m_final[2], 17, "%15d", average_time);
-    // snprintf(m_final[4], 17, "%15d", lost_rounds);
+    char(*message)[17] =
+        get_message(M_FINAL); 
+                                    
+    snprintf(message[2], 17, "%15d", average_time); 
+    snprintf(message[4], 17, "%15d", lost_rounds);  
 }
 
 // Callback quando recebe resposta do ThingSpeak
