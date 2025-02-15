@@ -173,6 +173,8 @@ inline int ssd1306_get_font(uint8_t character) {
         return 40;
     } else if (character == '-') {
         return 41;
+    } else if (character == '\xca') {
+        return 42;
     } else
         return 0;
 }

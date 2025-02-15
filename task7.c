@@ -1,3 +1,5 @@
+// #include "variables_and_imports.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -33,17 +35,18 @@
 #define LED_STEP 100
 #define DIVIDER_PWM 16.0
 #define PERIOD 4096
-#define ROUNDS_AMOUNT 3
+#define ROUNDS_AMOUNT 5
 #define NPI 1000000
 #define BUZZER_FREQUENCY 2000
 #define BEEP_DURATION 300
 
 // Variáveis relacionadas a wi-fi e thingSpeak
 #define WIFI_SSID "brisa-63489"
-#define WIFI_PASS "ud3henxz"
+#define WIFI_PASS "ud3henxa"
 #define THINGSPEAK_HOST "api.thingspeak.com"
 #define THINGSPEAK_PORT 80
 #define API_KEY "TWSP5RIPE7LLEVJ2"  // Chave de escrita do ThingSpeak
+#define WIFI_TIMEOUT_MS 10000
 struct tcp_pcb *tcp_client_pcb;
 ip_addr_t server_ip;
 
@@ -143,11 +146,22 @@ volatile uint32_t last_interruption_time =
         // usado para debounce
 bool is_to_reset =
     false;  // Caso o usuário queira resetar o teste durante a execução
+bool is_online = false;
 
 // textos a serem mostrados no display
-char m_wifi[8][17] = {
+char m_wifi_connecting[8][17] = {
     "   CONECTANDO   ", "                ", "     WI-FI      ",
     "                ", "                ", "                ",
+    "                ", "                ",
+};
+char m_wifi_connected[8][17] = {
+    "    ONLINE!     ", "                ", "                ",
+    "                ", "                ", "                ",
+    "                ", "                ",
+};
+char m_wifi_not_connected[8][17] = {
+    "WI-FI N\xc3O CO-   ", "                ", "NECTADO         ",
+    "                ", "TESTE OFFLINE   ", "                ",
     "                ", "                ",
 };
 char m_before_test[3][17] = {
@@ -177,10 +191,20 @@ char m_attention_alert[3][17] = {
 };
 char m_final[7][17] = {
     "   TEMPO MEDIO  ", "                ", "                ",
-    "                ", "     PERDAS     ", "                ",
+    "     PERDAS     ", "                ", "PRESSIONE A     ",
     "                ",
-
 };
+char m_sending_data[7][17] = {
+    "    ENVIANDO    ", "                ", "    DADOS...    ",
+    "                ", "                ", "                ",
+    "                ",
+};
+char m_data_was_sent[7][17] = {
+    "     DADOS      ", "                ", "    ENVIADOS    ",
+    "                ", "                ", "                ",
+    "                ",
+};
+
 
 // Função callback de interrupção de botões
 void gpio_callback(uint gpio, uint32_t events) {
@@ -291,7 +315,6 @@ void write_in_oled(char text[][17], int lines_amount) {
     int y = 0;
     for (uint i = 0; i < lines_amount * 17; i++) {
         ssd1306_draw_string(ssd, 5, y, text[i]);
-        printf(text[i]);
         y += 8;
     }
     render_on_display(ssd, &ssd1306_frame_area);
@@ -301,7 +324,13 @@ void update_screen() {
     clear_display_ssd1306();
     switch (current_step) {
         case -1:
-            write_in_oled(m_wifi, 8);
+            write_in_oled(m_wifi_connecting, 8);
+            break;
+        case -2:
+            write_in_oled(m_wifi_connected, 8);
+            break;
+        case -3:
+            write_in_oled(m_wifi_not_connected, 8);
             break;
         case 0:
             write_in_oled(m_before_test, 3);
@@ -319,10 +348,63 @@ void update_screen() {
             write_in_oled(m_attention_alert, 3);
             break;
         case 5:
+            write_in_oled(m_sending_data, 7);
+            break;
+        case 6:
+            write_in_oled(m_data_was_sent, 7);
+            break;
+        case 7:
             write_in_oled(m_final, 7);
             break;
         default:
             break;
+    }
+}
+
+bool connect_with_timeout() {
+    int result = cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASS,
+                                               CYW43_AUTH_WPA2_MIXED_PSK);
+    if (result != 0) {
+        printf("Failed to start connection: %d\n", result);
+        return false;
+    }
+
+    uint32_t start_time = to_ms_since_boot(get_absolute_time());
+    while (true) {
+        if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) ==
+            CYW43_LINK_UP)
+            return true;
+
+        uint32_t elapsed_time =
+            to_ms_since_boot(get_absolute_time()) - start_time;
+        if (elapsed_time >= WIFI_TIMEOUT_MS) return false;
+
+        sleep_ms(100);
+    }
+}
+
+void connect_internet() {
+    if (cyw43_arch_init()) {
+        printf("Falha ao iniciar Wi-Fi\n");
+        current_step = -3;
+        update_screen();
+        sleep_ms(3000);
+    } else {
+        cyw43_arch_enable_sta_mode();
+        printf("Conectando ao Wi-Fi...\n");
+
+        if (!connect_with_timeout()) {
+            printf("Falha ao conectar ao Wi-Fi\n");
+            current_step = -3;
+            update_screen();
+            sleep_ms(5000);
+        } else {
+            current_step = -2;
+            update_screen();
+            sleep_ms(5000);
+            is_online = true;
+            printf("Wi-Fi conectado!\n");
+        }
     }
 }
 
@@ -346,21 +428,7 @@ void setup() {
 
     update_screen();
 
-    if (cyw43_arch_init()) {
-        printf("Falha ao iniciar Wi-Fi\n");
-        return;
-    }
-
-    cyw43_arch_enable_sta_mode();
-    printf("Conectando ao Wi-Fi...\n");
-
-    if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASS,
-                                         CYW43_AUTH_WPA2_MIXED_PSK)) {
-        printf("Falha ao conectar ao Wi-Fi\n");
-        return;
-    }
-
-    printf("Wi-Fi conectado!\n");
+    connect_internet();
 }
 
 // Função de debug - Não é utilizada na versão final do sistema
@@ -374,7 +442,7 @@ void print_round_data() {
 
 bool is_the_test_going_on() { return current_step == 4; }
 
-bool is_in_waiting_screens() { return current_step == 0 || current_step == 5; }
+bool is_in_waiting_screens() { return current_step == 0 || current_step == 7; }
 
 void joystick_read_axis() {
     adc_select_input(ADC_CHANNEL_0);
@@ -541,7 +609,7 @@ void calculate_average_reaction_time() {
 
 void create_final_message() {
     snprintf(m_final[2], 17, "%15d", average_time);
-    snprintf(m_final[6], 17, "%15d", lost_rounds);
+    snprintf(m_final[4], 17, "%15d", lost_rounds);
 }
 
 // Callback quando recebe resposta do ThingSpeak
@@ -565,17 +633,14 @@ static err_t http_connected_callback(void *arg, struct tcp_pcb *tpcb,
 
     printf("Conectado ao ThingSpeak!\n");
 
-    // float temperature = read_temperature();  // Lê a temperatura
-    // "Host: %s\r\n"
     char request[256];
-    snprintf(request, sizeof(request),
-             "POST https://api.thingspeak.com/update.json\r\n"
-             "api_key=%s\r\n"
-             "field1=%d\r\n"
-             "field2=%d\r\n"
-             "\r\n",
-             API_KEY, THINGSPEAK_HOST, average_time, lost_rounds);
-    printf("%s", request);
+
+    snprintf(
+        request, sizeof(request),
+        "GET "
+        "https://api.thingspeak.com/update?api_key=%s&field1=%d&field2=%d\r\n",
+        API_KEY, average_time, lost_rounds);
+
     tcp_write(tpcb, request, strlen(request), TCP_WRITE_FLAG_COPY);
     tcp_output(tpcb);
     tcp_recv(tpcb, http_recv_callback);
@@ -637,10 +702,20 @@ int main() {
         if (is_to_reset) continue;
         calculate_average_reaction_time();
         create_final_message();
-        current_step = 5;
+
+        if (is_online) {
+            current_step = 5;
+            update_screen();
+            sleep_ms(1000);
+            upload_data();
+            current_step = 6;
+
+            update_screen();
+            sleep_ms(2000);
+        }
+        current_step = 7;
 
         update_screen();
-        upload_data();
-        while (current_step == 5) sleep_with_break(10000);
+        while (current_step == 7) sleep_with_break(10000);
     }
 }
