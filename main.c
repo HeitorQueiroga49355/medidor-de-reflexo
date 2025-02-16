@@ -285,7 +285,7 @@ int64_t sleep_timer_callback(alarm_id_t id, void *user_data) {
     }
 }
 
-void sleep_with_break(uint32_t time_ms) {
+void active_sleep_ms(uint32_t time_ms) {
     goal_time_ms = to_ms_since_boot(get_absolute_time()) + time_ms;
     is_to_break = false;
 
@@ -317,11 +317,11 @@ void beep(uint pin, float duration_ms) {
 
     pwm_set_gpio_level(pin, 2048);
 
-    sleep_with_break(duration_ms);
+    active_sleep_ms(duration_ms);
 
     pwm_set_gpio_level(pin, 0);
 
-    sleep_with_break(100);
+    active_sleep_ms(100);
 }
 
 void buzzer_alert() {
@@ -333,14 +333,14 @@ void start_test() {
     for (round_index = 0; round_index < ROUNDS_AMOUNT; round_index++) {
         is_reading_round_data = false;
         button_to_be_pressed = rounds[round_index].action;
-        sleep_with_break(rounds[round_index].sleep_time_before_start);
+        active_sleep_ms(rounds[round_index].sleep_time_before_start);
         if (is_to_reset) break;
 
         round_start_time = to_ms_since_boot(get_absolute_time());
         is_reading_round_data = true;
         np_write(get_np_symbol(rounds[round_index].action));
         buzzer_alert();
-        sleep_with_break(3000);
+        active_sleep_ms(3000);
         np_write(get_np_symbol(10));
 
         if (is_to_reset) break;
@@ -373,7 +373,7 @@ int main() {
         is_to_reset = false;
         current_step = 0;
         update_screen();
-        while (current_step == 0) sleep_with_break(10000);
+        while (current_step == 0) active_sleep_ms(10000);
         if (is_to_reset) continue;
         srand(to_ms_since_boot(
             get_absolute_time()));  // Após o usuário clicar em iniciar o código
@@ -384,17 +384,17 @@ int main() {
         // Os três trechos abaixo se trata da contagem regressiva para início do
         // teste
         update_screen();
-        sleep_with_break(1000);
+        active_sleep_ms(1000);
         if (is_to_reset) continue;
         current_step = 2;
 
         update_screen();
-        sleep_with_break(1000);
+        active_sleep_ms(1000);
         if (is_to_reset) continue;
         current_step = 3;
 
         update_screen();
-        sleep_with_break(1000);
+        active_sleep_ms(1000);
         if (is_to_reset) continue;
         current_step = 4;
 
@@ -418,6 +418,6 @@ int main() {
         current_step = 7;
 
         update_screen();
-        while (current_step == 7) sleep_with_break(10000);
+        while (current_step == 7) active_sleep_ms(10000);
     }
 }

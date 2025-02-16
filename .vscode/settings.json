@@ -43,7 +43,9 @@
         "compare": "c",
         "type_traits": "c",
         "cmath": "c",
-        "limits": "c"
+        "limits": "c",
+        "oled.h": "c",
+        "global_variables.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
