@@ -289,31 +289,45 @@ void handle_button_actions_during_sleep(bool *is_to_break,
         }
     }
 }
+bool is_to_break = false;
+uint32_t goal_time_ms = 0;
 
-void sleep_with_break(uint32_t time) {
-    uint32_t current_time = to_ms_since_boot(get_absolute_time());
-    uint32_t goal_time = current_time + time;
-    bool is_to_break = false;
-    while (current_time < goal_time) {
-        if (is_the_test_going_on() &&
-            rounds[round_index].reaction_time >=
-                0)  // Essa condição é necessária pois, caso o usuário tenha
-                    // clicado corretamente enquanto o buzzer estava tocando,
-                    // não precisa ser chamado outro temporizador
-            break;
+int64_t sleep_timer_callback(alarm_id_t id, void *user_data) {
+    // Atualiza o tempo atual
+    uint32_t current_time_ms = to_ms_since_boot(get_absolute_time());
 
-        handle_joystick_press();
-        handle_button_actions_during_sleep(&is_to_break, &current_time);
-        last_pressed_button = pa_NULL;
-        if (is_to_break) break;
-        current_time = to_ms_since_boot(get_absolute_time());
+    // Verifica se deve interromper o sono
+    if (is_the_test_going_on() && rounds[round_index].reaction_time >= 0) {
+        return 0;  // Não reagendar o temporizador
+    }
 
-        // Caso não esteja durante a execução do teste, o tempo de espera é
-        // maior, para economia de processamento
-        if (!is_the_test_going_on())
-            sleep_ms(50);
-        else
-            sleep_ms(1);
+    handle_joystick_press();
+    handle_button_actions_during_sleep(&is_to_break, &current_time_ms);
+    last_pressed_button = pa_NULL;
+
+    if (is_to_break || current_time_ms >= goal_time_ms) {
+        return 0;  // Não reagendar o temporizador
+    }
+
+    // Reagenda o temporizador de acordo com o estado do teste
+    if (!is_the_test_going_on()) {
+        return 50 * 1000;  // 50 ms em microssegundos
+    } else {
+        return 1 * 1000;  // 1 ms em microssegundos
+    }
+}
+
+void sleep_with_break(uint32_t time_ms) {
+    goal_time_ms = to_ms_since_boot(get_absolute_time()) + time_ms;
+    is_to_break = false;
+
+    // Inicia o temporizador
+    add_alarm_in_us(0, sleep_timer_callback, NULL, true);
+
+    // Aguarda até que a condição seja satisfeita
+    while (!is_to_break &&
+           to_ms_since_boot(get_absolute_time()) < goal_time_ms) {
+        tight_loop_contents();  // Aguarda sem fazer nada
     }
 }
 
