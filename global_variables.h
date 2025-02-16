@@ -1,6 +1,8 @@
 #ifndef GLOBAL_VARIABLES_H
 #define GLOBAL_VARIABLES_H
 
+#include "pico/stdlib.h"
+
 #define NP_LED_COUNT 25
 #define NP_PIN 7
 #define LEDR 13

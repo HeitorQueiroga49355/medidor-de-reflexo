@@ -1,4 +1,9 @@
 #include "np.h"
+#include "global_variables.h"
+#include "ws2818b.pio.h"
+
+uint sm;
+PIO np_pio;
 
 int *get_np_symbol(possible_actions action) {
   static int symbol[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -45,4 +50,28 @@ int *get_np_symbol(possible_actions action) {
           return symbol;  // Retorna o array default se a ação não for
                           // reconhecida
   }
+}
+
+// np = neopixel = matriz de leds
+void np_init(uint pin) {
+    uint offset = pio_add_program(pio0, &ws2818b_program);
+    np_pio = pio0;
+
+    sm = pio_claim_unused_sm(np_pio, false);
+    if (sm < 0) {
+        np_pio = pio1;
+        sm = pio_claim_unused_sm(np_pio, true);
+    }
+
+    ws2818b_program_init(np_pio, sm, offset, pin, 800000.f);
+}
+
+void np_write(const uint *symbol) {
+    for (uint i = 0; i < NP_LED_COUNT; i++) {
+        pio_sm_put_blocking(np_pio, sm, symbol[i]);
+        pio_sm_put_blocking(np_pio, sm, symbol[i]);
+        pio_sm_put_blocking(np_pio, sm, symbol[i]);
+    }
+
+    sleep_us(100);  // Espera 100us, sinal de RESET do datasheet.
 }
